@@ -1,0 +1,3 @@
+Payment methods: Cash, Cheque, Bank transfer
+Sort code: 12-34-56
+Account number: 1234 5678
