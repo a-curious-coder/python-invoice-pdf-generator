@@ -1,36 +1,38 @@
-""" Invoice data class """
-from typing import List
+""" Invoice class """
+
+from order import Order
 
 
 class Invoice:
-    """Invoice data class"""x
+    """Invoice data class"""
 
-    name: str
-    date: str
-    items: List[dict]
-
-    def __init__(self, name, date, items):
+    def __init__(self, name, date, orders):
         """Initialize invoice"""
         self.name = name
         self.date = date
-        self.items = items
+        self.orders = orders
 
     def __str__(self):
         """Return a string representation of the invoice"""
-        details = f"{self.name}\n{self.date}"
-        item_list = "".join(
-            f"{item['name']}\t{item['quantity']}\t£{item['unit_cost']:.2f}\n"
-            for item in self.items
-        )
+        # print date in dd/mm/yyyy format
+        date = self.date.strftime("%d/%m/%Y")
+        details = f"{self.name}\t{date}\n{'-' * 40}\n"
+        details += f" {'Product':<10} {'Quantity':<10} {'Cost':<10} {'Date':<15} \n"
+        for order in self.orders:
+            details += f"{order}\n"
+        return f"{details}"
 
-        return f"{details}\n{item_list}"
+    def __eq__(self, other):
+        """ Override the default Equals behavior
 
-    def add_item(self, product, purchase_date, quantity, unit_cost):
-        """Add item to invoice"""
-        self.items.append(
-            {
-                "name": f"{product} ({purchase_date})",
-                "quantity": quantity,
-                "unit_cost": unit_cost,
-            }
-        )
+        Args:
+            other (Invoice): other invoice object
+        """
+        return self.name == other.name and \
+            self.date == other.date and \
+            self.orders == other.orders
+
+    def add_order(self, name, order_date, quantity, product):
+        """Add order to invoice"""
+        order = Order(name, quantity, order_date, product)
+        self.orders.append(order)

@@ -10,6 +10,8 @@ from multiprocessing import Pool
 
 from invoice import Invoice
 from invoice_pdf import PdfInvoice
+from order import Order
+from product import Product
 
 
 def get_names():
@@ -62,36 +64,30 @@ def get_invoice_objects(num_invoices):
         name = " ".join(name)
         dates = get_date_range(numweeks=2)
 
-        products = ["Milk", "Eggs", "Bread", "Cheese", "Butter", "Coffee"]
-        prices = {
-            "Milk": 1.50,
-            "Eggs": 2.00,
-            "Bread": 1.00,
-            "Cheese": 2.00,
-            "Butter": 1.00,
-            "Coffee": 1.00,
-        }
-        items = []
-        # Generate random number of items with random quantities/costs
+        # Generate random products
+        product_names = ["Milk", "Eggs", "Bread", "Cheese", "Butter", "Coffee"]
+        products = []
+        for _ in range(random.randint(1, 5)):
+            product_name = random.choice(product_names)
+            # Random price between 1-5 with .5
+            price = round(random.uniform(1, 5), 2)
+            products.append(Product(product_name, price))
+
+        orders = []
+        # Generate random number of orders with random quantities/costs
         for _ in range(random.randint(1, 5)):
             # Generate a date within the last two weeks
             date = random.choice(dates)
-            # Convert date to string
-            strdate = date.strftime("%d/%m/%Y")
+            # Get random product
             product = random.choice(products)
-            items.append(
-                {
-                    "name": f"{product} ({strdate})",
-                    "date": date,
-                    "quantity": random.randint(1, 5),
-                    "unit_cost": prices[product],
-                }
-            )
-        # Sort items by date
-        items.sort(key=lambda x: x["date"])
-        # Add invoice to list
-        invoice_objects.append(Invoice(name, date, items))
+            # Generate order
+            order = Order(name, random.randint(1, 10), date, product)
 
+            orders.append(order)
+        # Sort orders by date
+        orders.sort(key=lambda x: x.order_date)
+        # Add invoice to list
+        invoice_objects.append(Invoice(name, date, orders))
     return invoice_objects
 
 
@@ -128,21 +124,22 @@ def load_invoice_objects(filename):
 
 def invoice_to_pdf(invoice_object):
     """Generate single invoice object to pdf file"""
-    generate = PdfInvoice()
-    generate.invoice_to_pdf(invoice_object)
+    generate = PdfInvoice(invoice_object)
+    generate.invoice_to_pdf()
 
 
 def generate_invoice_pdf_files(invoice_objects):
     """Generate invoices"""
     for invoice in invoice_objects:
-        invoice_to_pdf(invoice)
+        generate = PdfInvoice(invoice)
+        generate.invoice_to_pdf()
 
 
 def generate_invoice_pdf_files_multithread(invoice_objects):
     """Generate invoices using multiprocessing"""
-    pool = Pool(processes=os.cpu_count())  # process per core
-    pool.map(invoice_to_pdf, invoice_objects)
-    pool.close()
+    with Pool(processes=os.cpu_count()) as pool:
+        pool.map(invoice_to_pdf, invoice_objects)
+        pool.close()
 
 
 # Test class for generating invoices
@@ -151,7 +148,7 @@ class TestGenerator(unittest.TestCase):
 
     def setUp(self):
         self.start = time.time()
-        num_invoices = 50
+        num_invoices = 3
         # If invoices folder doesn't exist, make one
         if not os.path.exists("invoices"):
             os.mkdir("invoices")
@@ -164,8 +161,8 @@ class TestGenerator(unittest.TestCase):
         self.filename = f"invoices/{num_invoices}_invoices_{today}.pkl"
 
     def tearDown(self) -> None:
-        t = time.time() - self.start
-        print("%s: %.3f" % (self.id(), t))
+        # t = time.time() - self.start
+        # print("%s: %.3f" % (self.id(), t))
         delete_all_invoices()
         return super().tearDown()
 

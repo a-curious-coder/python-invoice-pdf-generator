@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import datetime
 import os
+import time
 
+import requests
 from fpdf import FPDF
 from PIL import Image
-from io import BytesIO
-import requests
 
 DEBUG = False
 
@@ -13,24 +13,31 @@ DEBUG = False
 class PdfInvoice:
     """Invoice PDF"""
 
-    def __init__(self):
+    def __init__(self, inv):
         """Initialize invoice"""
         # Customer values
-        # Read in address from file
-        with open("data/address.txt", "r") as f:
-            self.address = f.read()
-            # Read notes
-        with open("data/notes.txt", "r") as f:
-            self.notes = f.read()
-        # Read payment_terms
-        with open("data/payment_terms.txt", "r") as f:
-            self.payment_terms = f.read()
+        # If data folder doesn't exist, create it
+        if os.path.exists("data"):
+            # Read in address from file
+            with open("data/address.txt", "r") as f:
+                self.address = f.read()
+                # Read notes
+            with open("data/notes.txt", "r") as f:
+                self.notes = f.read()
+            # Read payment_terms
+            with open("data/payment_terms.txt", "r") as f:
+                self.payment_terms = f.read()
+        else:
+            self.address = "Address"
+            self.notes = "Notes"
+            self.payment_terms = "Payment Terms"
         # Settings
         self.folder = "invoices"
         self.logo_url = ""
         self.width = 216.04
         self.height = 279.39
         self.create_blank_pdf()
+        self.invoice = inv
 
     def create_blank_pdf(self):
         """Create blank pdf"""
@@ -52,12 +59,20 @@ class PdfInvoice:
                 self.draw_vertical_line(i, 0, 2000)
                 self.draw_horizontal_line(0, i, 2000)
 
-    def invoice_to_pdf(self, inv):
+    def invoice_to_pdf(self):
         """Generate invoice to pdf"""
-        name = inv.name
-        items = inv.items
+        
+        self.create_blank_pdf()
+        name = self.invoice.name
+        orders = self.invoice.orders
+        # Get todays date as dd/mm/yyyy string
+        today = datetime.datetime.today().strftime("%d_%m_%Y")
+        filename = f"{self.folder}/{name}'s_invoice_{today}.pdf"
+        # If invoice already exists
+        # if os.path.exists(filename):
+        #     return
         # Calculate total income from items
-        total_income = sum(item["quantity"] * item["unit_cost"] for item in items)
+        total_income = sum(order.cost for order in orders)
         total_income = f"{total_income:.2f}"
 
         # NOTE: INVOICE CAPTION
@@ -169,12 +184,10 @@ class PdfInvoice:
         self.pdf.set_xy(187, text_height)
         self.pdf.cell(ln=0, h=0, align="L", w=85, txt="Amount", border=0)
         dprint("[INFO] Table header added")
-        # NOTE: ADDING ITEMS
+        # NOTE: ADDING orders
         row = 107
-        for i in items:
-            item = f"{i['name']}"
-            quantity = i["quantity"]
-            quantity_str = ""
+        for order in orders:
+            quantity = order.quantity
             # If quantity has 2dp
             if quantity % 1 == 0:
                 quantity_str = f"{quantity:.0f}"
@@ -184,14 +197,12 @@ class PdfInvoice:
             # if quantity has 2dp
             elif quantity % 1 == 0.25:
                 quantity_str = f"{quantity:.2f}"
-            unit_cost = i["unit_cost"]
-            amount = quantity * unit_cost
             # Reset font
             self.pdf.set_font("helvetica", "B", 10.0)
             self.pdf.set_text_color(0, 0, 0)
             # Item
             self.pdf.set_xy(15.1, row)
-            self.pdf.cell(ln=0, h=0, align="L", w=85, txt=f"{item}", border=0)
+            self.pdf.cell(ln=0, h=0, align="L", w=85, txt=f"{order.product.name} ({order.get_date()})", border=0)
             # reset font
             self.pdf.set_font("helvetica", "", 10.0)
             # Quantity
@@ -199,10 +210,10 @@ class PdfInvoice:
             self.pdf.cell(ln=0, h=0, align="L", w=85, txt=f"{quantity_str}", border=0)
             # Rate
             self.pdf.set_xy(165, row)
-            self.pdf.cell(ln=0, h=0, align="L", w=85, txt=f"£{unit_cost:.2f}", border=0)
+            self.pdf.cell(ln=0, h=0, align="L", w=85, txt=f"£{order.product.price:.2f}", border=0)
             # Amount
             self.pdf.set_xy(187, row)
-            self.pdf.cell(ln=0, h=0, align="L", w=85, txt=f"£{amount:.2f}", border=0)
+            self.pdf.cell(ln=0, h=0, align="L", w=85, txt=f"£{order.cost:.2f}", border=0)
             row += 8
         dprint("[INFO] Items added")
         # NOTE: ADDING TOTAL
@@ -222,7 +233,7 @@ class PdfInvoice:
         row += 50
         self.write_sentences("Terms", self.payment_terms, row)
         dprint("[INFO] Terms added")
-        self.pdf.output(f"{self.folder}/{name}'s_invoice.pdf", "F")
+        self.pdf.output(filename, "F")
         dprint("[INFO] PDF generated")
 
     def write_sentences(self, header, notes, row):
